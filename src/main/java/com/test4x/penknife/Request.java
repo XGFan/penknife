@@ -26,7 +26,6 @@ public class Request {
     private String url;
     private String uri;
     private String protocol;
-    private String method;
 
     private HashMap<String, String> headers;
 
@@ -45,7 +44,7 @@ public class Request {
         int pathEndPos = this.url.indexOf('?');
         this.uri = pathEndPos < 0 ? this.url : this.url.substring(0, pathEndPos);
         this.protocol = fullHttpRequest.protocolVersion().text();
-        this.method = fullHttpRequest.method().name();
+        this.httpMethod = fullHttpRequest.method();
 
         // headers
         HttpHeaders httpHeaders = fullHttpRequest.headers();

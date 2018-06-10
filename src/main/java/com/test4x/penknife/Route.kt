@@ -1,167 +1,81 @@
 package com.test4x.penknife
 
+import io.netty.handler.codec.http.HttpMethod
 import java.util.*
 
-class Route(val path: String) {
+class Route(val method: HttpMethod, rawPath: String, val action: Action) {
+
+    val path: String
 
     init {
-        val split = path.split("/")//分隔开
+        this.path = rawPath.fixPath()
+    }
 
+
+    fun match(method: HttpMethod, url: String): MatchResult {
+        if (method != this.method) {
+            return MatchResult()
+        }
+        val paths = path.split("/")
+        val urls = url.split("/")
+        if (urls.size != paths.size) {
+            return MatchResult()
+        } else {
+            val pathArgMap = HashMap<String, String>()
+            var index = 0
+            do {
+                val p = paths[index]
+                val u = urls[index]
+                if (p.startsWith(":")) {
+                    pathArgMap[p] = u
+                } else {
+                    if (p != u) {
+                        return MatchResult()
+                    }
+                }
+                index++
+            } while (index < paths.size)
+            return MatchResult(pathArgMap, action)
+        }
+    }
+
+
+    data class MatchResult(val result: Boolean = false, val pathArgMap: Map<String, String> = emptyMap(), val action: Action = discard) {
+        constructor(pathArgMap: Map<String, String>, action: Action) : this(true, pathArgMap, action)
+    }
+
+    private fun String.fixPath(): String {
+        return if (this.startsWith("/")) {
+            this
+        } else {
+            "/$this"
+        }
     }
 
 
     companion object {
+        val discard: Action = Action { req, res ->
+        }
+
+
         @JvmStatic
         fun main(args: Array<String>) {
-            val x = "/aaa/bbb/{d}/{d}"
-            val y = "/aaa/bbb/{c}/{d}"
-            val z = "/bbb/ccc/{d}"
+            val list = LinkedList<Route>()
+            list.add(Route(HttpMethod.GET, ":user/books", discard))
+            list.add(Route(HttpMethod.GET, ":book/detail", discard))
+            list.add(Route(HttpMethod.DELETE, "book/:id", discard))
+            list.add(Route(HttpMethod.POST, "book/:id", discard))
 
-            val tree = PlainRouteNode("")
-            tree.add(x.split("/"), "x")
-            tree.add(y.split("/"), "y")
-            tree.add(z.split("/"), "z")
+            for (route in list) {
+                val match = route.match(HttpMethod.GET, "book/1")
+                if (match.result) {
 
-            val get = tree.get(x.split("/"))
-            println(get?.invoke())
-
-
-        }
-    }
-
-}
-
-enum class NodeType {
-    REGEX, PLAIN
-}
-
-
-/**
- * 路由的树
- */
-interface RouteTree {
-
-    fun type(): NodeType
-
-    fun path(): String
-
-    fun match(path: String): Boolean
-
-    fun invoke(): String? //假装这就是执行部分
-
-    /**
-     * 添加
-     */
-    fun add(ps: List<String>, invoke: String)
-
-    /**
-     * 查找
-     */
-    fun get(ps: List<String>): RouteTree?
-}
-
-abstract class AbstractRouteNode(val path: String,
-                                 var invoke: String? = null) : RouteTree {
-
-
-    val plainChild = HashMap<String, RouteTree>()
-    val regexChild = LinkedList<RouteTree>()
-
-    abstract val type: NodeType
-
-    override fun add(ps: List<String>, invoke: String) {
-        if (ps.isNotEmpty()) {
-            val cur = ps[0]
-            val routeTree = if (cur.isRegexPath()) {
-                for (routeTree in this.regexChild) {
-
-
-                }
-                this.regexChild[cur] ?: let {
-                    val child = DefaultRouteNode(cur)
-                    this.regexChild[cur] = child
-                    child
-                }
-            } else {
-                this.plainChild[cur] ?: let {
-                    val child = PlainRouteNode(cur)
-                    this.plainChild[cur] = child
-                    child
                 }
             }
-            routeTree.add(ps.drop(1), invoke)
-        } else {
-            this.invoke = invoke
+            list.firstOrNull {
+                it.match(HttpMethod.GET, "book/1").result
+            }
         }
     }
 
-    override fun get(ps: List<String>): RouteTree? {
-        if (ps.isEmpty()) {
-            return this
-        }
-        return (plainChild[ps[0]] ?: regexChild[ps[0]])?.get(ps.drop(1))
-    }
-
-
-    override fun type(): NodeType {
-        return type
-    }
-
-    override fun path(): String {
-        return path
-    }
-
-    override fun invoke(): String? {
-        return invoke
-    }
-
 }
-
-
-class RegexRouteNode(path: String,
-                     invoke: String? = null) : AbstractRouteNode(path, invoke) {
-    override val type: NodeType = NodeType.REGEX
-
-    val name: String
-    val regex: Regex
-
-
-    init {
-        val toPathArg = path.toPathArg()
-        name = toPathArg.first
-        regex = toPathArg.second
-    }
-
-    override fun match(path: String): Boolean {
-        return regex.matches(path)
-    }
-
-}
-
-class PlainRouteNode(path: String,
-                     invoke: String? = null) : AbstractRouteNode(path, invoke) {
-    override val type: NodeType = NodeType.PLAIN
-
-    override fun match(path: String): Boolean {
-        return this.path == path
-    }
-
-}
-
-fun String.toPathArg(): Pair<String, Regex> {
-    val inner = this.drop(1).dropLast(1)
-    val splitIndex = inner.indexOf(":")
-    return if (splitIndex != -1) {
-        Pair(inner.substring(0, splitIndex), inner.substring(splitIndex).toRegex())
-    } else {
-        Pair(inner, "\\w+".toRegex())
-    }
-}
-
-fun String.isRegexPath(): Boolean {
-    return this.startsWith("{") && this.endsWith("}")
-}
-
-
-//open class RegexRouteNode(path: String,
-//                          invoke: String? = null) : DefaultRouteNode()

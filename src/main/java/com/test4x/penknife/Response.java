@@ -5,6 +5,7 @@ import io.netty.handler.codec.http.cookie.Cookie;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 @Slf4j
@@ -13,6 +14,7 @@ public class Response {
     private Set<Cookie> cookies = new HashSet<>(4);
     private HttpResponseStatus statusCode = HttpResponseStatus.OK;
     private CharSequence contentType = null;
+    private Object body = null;
 
     public HttpResponseStatus statusCode() {
         return this.statusCode;
@@ -28,11 +30,9 @@ public class Response {
         return this;
     }
 
-
     public String contentType() {
         return null == this.contentType ? null : String.valueOf(this.contentType);
     }
-
 
     public Map<String, String> headers() {
         Map<String, String> map = new HashMap<>(this.headers.size());
@@ -40,18 +40,15 @@ public class Response {
         return map;
     }
 
-
     public Response header(CharSequence name, CharSequence value) {
         this.headers.set(name, value);
         return this;
     }
 
-
     public Response cookie(@NonNull Cookie cookie) {
         this.cookies.add(cookie);
         return this;
     }
-
 
     public Response removeCookie(@NonNull String name) {
         Optional<Cookie> cookieOpt = this.cookies.stream().filter(cookie -> cookie.name().equals(name)).findFirst();
@@ -65,6 +62,15 @@ public class Response {
         return this;
     }
 
+    public Response bodyText(String text) {
+        this.body = text;
+        return this;
+    }
+
+    public Response body(Object object) {
+        this.body = object;
+        return this;
+    }
 
     public Map<String, String> cookies() {
         Map<String, String> map = new HashMap<>(8);
@@ -72,12 +78,24 @@ public class Response {
         return map;
     }
 
-
     public Response() {
     }
 
-    public FullHttpResponse send() {
-        return new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, this.statusCode);
-    }
+    FullHttpResponse send() {
+        final DefaultFullHttpResponse res = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, this.statusCode);
+        if (!cookies.isEmpty()) {
+//            res.
+        }
+        if (!headers.isEmpty()) {
+            res.headers().setAll(headers);
+        }
+        if (body != null) {
+            if (body instanceof CharSequence) {
+                res.content().writeCharSequence((CharSequence) body, StandardCharsets.UTF_8);
+            } else {
 
+            }
+        }
+        return res;
+    }
 }

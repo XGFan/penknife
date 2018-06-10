@@ -1,28 +1,25 @@
 package com.test4x.penknife;
 
 import io.netty.bootstrap.ServerBootstrap;
-import io.netty.channel.*;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelInitializer;
+import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.http.*;
+import io.netty.handler.codec.http.cors.CorsConfigBuilder;
+import io.netty.handler.codec.http.cors.CorsHandler;
 import io.netty.handler.stream.ChunkedWriteHandler;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 
-import java.net.InetSocketAddress;
-import java.util.HashMap;
-
-/**
- * Http（TCP）服务端
- * 用于测试
- */
+@Slf4j
 public class NettyServer {
-    public static void main(String[] args) throws Exception {
+    public static void start(int port) throws Exception {
         System.setProperty(org.slf4j.impl.SimpleLogger.DEFAULT_LOG_LEVEL_KEY, "DEBUG");//简单设置日志
         final ServerBootstrap bootstrap = new ServerBootstrap();
-        final Logger logger = LoggerFactory.getLogger(NettyServer.class);
         NioEventLoopGroup boss = new NioEventLoopGroup();
         NioEventLoopGroup worker = new NioEventLoopGroup();
+        final SimpleChannelInboundHandler<FullHttpRequest> adapter = new AdapterHandler();
         try {
             bootstrap.group(boss, worker)
                     .channel(NioServerSocketChannel.class)
@@ -36,32 +33,11 @@ public class NettyServer {
                                     .addLast(new HttpServerExpectContinueHandler())
                                     .addLast(new HttpObjectAggregator(100 * 1024 * 1024))
                                     .addLast(new ChunkedWriteHandler())
-                                    .addLast(new SimpleChannelInboundHandler<FullHttpRequest>() {
-                                        @Override
-                                        protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest msg) throws Exception {
-
-                                            final Request request = new Request(msg);
-                                            logger.info("{}", request.getUri());
-                                            logger.info("{}", request.getHeaders());
-                                            logger.info("{}", request.getParameters());
-                                            logger.info("{}", request.cookie());
-                                            final String ip = ((InetSocketAddress) ctx.channel().localAddress()).getHostString();
-
-                                            Action t = (req, res) -> {
-                                                final HashMap<String, String> headers = req.getHeaders();
-//                                                res.status(401);
-                                            };
-
-                                            final Response response = new Response();
-                                            t.invoke(request, response);
-                                            ctx.writeAndFlush(response.send()).addListener(ChannelFutureListener.CLOSE);
-                                        }
-                                    });
-
+                                    .addLast(new CorsHandler(CorsConfigBuilder.forAnyOrigin().allowNullOrigin().allowCredentials().build()))
+                                    .addLast(adapter);
                         }
                     });
-
-            final Channel ch = bootstrap.bind(8080).sync().channel();
+            final Channel ch = bootstrap.bind(port).sync().channel();
             ch.closeFuture().sync();
         } finally {
             boss.shutdownGracefully().sync();
