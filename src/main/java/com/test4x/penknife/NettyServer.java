@@ -10,7 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.net.InetSocketAddress;
-import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
 
 /**
  * Http（TCP）服务端
@@ -46,10 +46,15 @@ public class NettyServer {
                                             logger.info("{}", request.getParameters());
                                             logger.info("{}", request.cookie());
                                             final String ip = ((InetSocketAddress) ctx.channel().localAddress()).getHostString();
-                                            final DefaultFullHttpResponse response =
-                                                    new DefaultFullHttpResponse(msg.protocolVersion(), HttpResponseStatus.OK);
-                                            response.content().writeCharSequence(ip, StandardCharsets.UTF_8);
-                                            ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
+
+                                            Action t = (req, res) -> {
+                                                final HashMap<String, String> headers = req.getHeaders();
+//                                                res.status(401);
+                                            };
+
+                                            final Response response = new Response();
+                                            t.invoke(request, response);
+                                            ctx.writeAndFlush(response.send()).addListener(ChannelFutureListener.CLOSE);
                                         }
                                     });
 
