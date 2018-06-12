@@ -5,21 +5,18 @@ import java.util.HashMap;
 
 public class SimpleTest {
 
-    public static void main(String[] args) throws InterruptedException {
-//        System.setProperty(org.slf4j.impl.SimpleLogger.DEFAULT_LOG_LEVEL_KEY, "TRACE");//简单设置日志
-
+    public static void main(String[] args) {
         HashMap<String, Integer> books = new HashMap<>();
-
         PenKnife.INSTANCE
                 .get("index", (req, res) -> res.bodyText("hello,world")) //index
                 .post("book", (req, res) -> { //添加书
-                    final String name = req.body("name").toString();
-                    final Integer price = Integer.valueOf(req.body("price").toString());
+                    final String name = req.body("name");
+                    final Integer price = Integer.valueOf(req.body("price"));
                     books.put(name, price);
                     res.body(new AbstractMap.SimpleImmutableEntry<>("status", 1));
                 })
                 .delete("book", (req, res) -> { //删除书
-                    final String name = req.query("name").get(0);
+                    final String name = req.query("name");
                     if (books.get(name) != null) {
                         books.remove(name);
                         res.body(new AbstractMap.SimpleImmutableEntry<>("status", 1));
@@ -38,7 +35,7 @@ public class SimpleTest {
                 })
                 .put("book/:name", (req, res) -> { //修改书
                     final String name = req.path(":name");
-                    final Integer price = Integer.valueOf((String) req.body("price"));
+                    final Integer price = Integer.valueOf(req.body("price"));
                     if (books.get(name) == null) {
                         res.body(new AbstractMap.SimpleImmutableEntry<>("status", -1));
                     } else {
@@ -47,6 +44,5 @@ public class SimpleTest {
                     }
                 })
                 .start(8080);
-        System.out.println("started");
     }
 }
