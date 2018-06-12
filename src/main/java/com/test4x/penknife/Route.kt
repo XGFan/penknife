@@ -39,6 +39,10 @@ class Route(val method: HttpMethod, rawPath: String, val action: Action) {
         }
     }
 
+    companion object {
+        val discard = Action { req, res -> }
+    }
+
 
     data class MatchResult(val result: Boolean = false, val pathArgMap: Map<String, String> = emptyMap(), val action: Action = discard) {
         constructor(pathArgMap: Map<String, String>, action: Action) : this(true, pathArgMap, action)
@@ -51,31 +55,4 @@ class Route(val method: HttpMethod, rawPath: String, val action: Action) {
             "/$this"
         }
     }
-
-
-    companion object {
-        val discard: Action = Action { req, res ->
-        }
-
-
-        @JvmStatic
-        fun main(args: Array<String>) {
-            val list = LinkedList<Route>()
-            list.add(Route(HttpMethod.GET, ":user/books", discard))
-            list.add(Route(HttpMethod.GET, ":book/detail", discard))
-            list.add(Route(HttpMethod.DELETE, "book/:id", discard))
-            list.add(Route(HttpMethod.POST, "book/:id", discard))
-
-            for (route in list) {
-                val match = route.match(HttpMethod.GET, "book/1")
-                if (match.result) {
-
-                }
-            }
-            list.firstOrNull {
-                it.match(HttpMethod.GET, "book/1").result
-            }
-        }
-    }
-
 }

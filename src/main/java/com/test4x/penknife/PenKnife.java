@@ -1,5 +1,8 @@
 package com.test4x.penknife;
 
+import com.test4x.penknife.converter.HttpMessageConverter;
+import com.test4x.penknife.converter.JsonConverter;
+import com.test4x.penknife.converter.PlainConverter;
 import io.netty.handler.codec.http.HttpMethod;
 
 import java.time.LocalDateTime;
@@ -8,57 +11,65 @@ import java.util.LinkedList;
 import java.util.List;
 
 public class PenKnife {
-    static List<Route> routes = new LinkedList<>();
 
-    private static void addAction(HttpMethod httpMethod, String path, Action action) {
+    private List<Route> routes = new LinkedList<>();
+
+    private LinkedList<HttpMessageConverter> converters = new LinkedList<>();
+
+    private PenKnife addAction(HttpMethod httpMethod, String path, Action action) {
         routes.add(new Route(httpMethod, path, action));
-    }
-
-    public static void get(String path, Action action) {
-        addAction(HttpMethod.GET, path, action);
-    }
-
-    public static void post(String path, Action action) {
-        addAction(HttpMethod.POST, path, action);
-    }
-
-    public static void delete(String path, Action action) {
-        addAction(HttpMethod.DELETE, path, action);
-    }
-
-    public static void put(String path, Action action) {
-        addAction(HttpMethod.PUT, path, action);
+        return this;
     }
 
 
-    static void invoke(HttpMethod httpMethod, String url) {
+    public PenKnife register(HttpMessageConverter httpMessageConverter) {
+        converters.push(httpMessageConverter);
+        return this;
+    }
+
+    List<HttpMessageConverter> converters() {
+        return converters;
+    }
+
+    public PenKnife get(String path, Action action) {
+        return addAction(HttpMethod.GET, path, action);
+    }
+
+    public PenKnife post(String path, Action action) {
+        return addAction(HttpMethod.POST, path, action);
+    }
+
+    public PenKnife delete(String path, Action action) {
+        return addAction(HttpMethod.DELETE, path, action);
+    }
+
+    public PenKnife put(String path, Action action) {
+        return addAction(HttpMethod.PUT, path, action);
+    }
+
+
+    public Route.MatchResult match(HttpMethod httpMethod, String uri) {
         for (Route route : routes) {
-            final Route.MatchResult matchResult = route.match(httpMethod, url);
+            final Route.MatchResult matchResult = route.match(httpMethod, uri);
             if (matchResult.getResult()) {
-                final Action action = matchResult.getAction();
-
-
-            }
-
-        }
-
-    }
-
-
-    static void newJob(HttpMethod httpMethod, String url) {
-        for (Route route : routes) {
-            final Route.MatchResult matchResult = route.match(httpMethod, url);
-            if (matchResult.getResult()) {
-                final Action action = matchResult.getAction();
+                return matchResult;
             }
         }
-
+        return null;
     }
 
-    public static void start(int port) {
+
+    public static PenKnife INSTANCE = new PenKnife();
+
+    static {
+        INSTANCE.register(new PlainConverter());
+        INSTANCE.register(new JsonConverter());
+    }
+
+    public void start(int port) {
         new Thread(() -> {
             try {
-                NettyServer.start(port);
+                new NettyServer(this).start(port);
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -66,15 +77,6 @@ public class PenKnife {
     }
 
 
-    public static void main(String[] args) {
-        PenKnife.get("index",(req, res) -> {
-            res.bodyText(DateTimeFormatter.ISO_LOCAL_DATE_TIME.format(LocalDateTime.now()));
-        });
-        PenKnife.post("what",(req, res) -> {
-            res.bodyText(DateTimeFormatter.ISO_LOCAL_DATE_TIME.format(LocalDateTime.now()));
-        });
-        PenKnife.start(8080);
-        System.out.println("hello");
-    }
+
 
 }

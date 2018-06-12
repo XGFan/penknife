@@ -10,16 +10,25 @@ import io.netty.handler.codec.http.*;
 import io.netty.handler.codec.http.cors.CorsConfigBuilder;
 import io.netty.handler.codec.http.cors.CorsHandler;
 import io.netty.handler.stream.ChunkedWriteHandler;
+import io.netty.util.concurrent.DefaultEventExecutorGroup;
+import io.netty.util.concurrent.EventExecutorGroup;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class NettyServer {
-    public static void start(int port) throws Exception {
-        System.setProperty(org.slf4j.impl.SimpleLogger.DEFAULT_LOG_LEVEL_KEY, "DEBUG");//简单设置日志
+    private PenKnife penKnife;
+
+    public NettyServer(PenKnife penKnife) {
+        this.penKnife = penKnife;
+    }
+
+    public void start(int port) throws Exception {
         final ServerBootstrap bootstrap = new ServerBootstrap();
         NioEventLoopGroup boss = new NioEventLoopGroup();
         NioEventLoopGroup worker = new NioEventLoopGroup();
-        final SimpleChannelInboundHandler<FullHttpRequest> adapter = new AdapterHandler();
+        final SimpleChannelInboundHandler<FullHttpRequest> adapter = new AdapterHandler(penKnife);
+        final ConvertHandler convertHandler = new ConvertHandler(penKnife);
+        final EventExecutorGroup group = new DefaultEventExecutorGroup(Runtime.getRuntime().availableProcessors() * 2 + 1);
         try {
             bootstrap.group(boss, worker)
                     .channel(NioServerSocketChannel.class)
@@ -34,7 +43,8 @@ public class NettyServer {
                                     .addLast(new HttpObjectAggregator(100 * 1024 * 1024))
                                     .addLast(new ChunkedWriteHandler())
                                     .addLast(new CorsHandler(CorsConfigBuilder.forAnyOrigin().allowNullOrigin().allowCredentials().build()))
-                                    .addLast(adapter);
+                                    .addLast(convertHandler)
+                                    .addLast(group, adapter);
                         }
                     });
             final Channel ch = bootstrap.bind(port).sync().channel();

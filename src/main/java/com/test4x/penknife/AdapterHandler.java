@@ -1,46 +1,55 @@
 package com.test4x.penknife;
 
+import com.test4x.penknife.message.Request;
+import com.test4x.penknife.message.Response;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.http.FullHttpRequest;
+import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.handler.codec.http.HttpUtil;
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import static io.netty.handler.codec.http.HttpHeaderValues.KEEP_ALIVE;
 
 @Slf4j
 @ChannelHandler.Sharable
 public class AdapterHandler extends SimpleChannelInboundHandler<FullHttpRequest> {
 
-    private final ExecutorService executorService = Executors.newCachedThreadPool();
+    private PenKnife penKnife;
+
+    public AdapterHandler(PenKnife penKnife) {
+        this.penKnife = penKnife;
+    }
 
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest fullHttpRequest) {
-        final Request request = new Request(fullHttpRequest);
+        String url = fullHttpRequest.uri();
+        int pathEndPos = url.indexOf('?');
+        String noQueryUrl = pathEndPos < 0 ? url : url.substring(0, pathEndPos);
         final Response response = new Response();
-        Boolean flag = true;
-        for (Route route : PenKnife.routes) {
-            final Route.MatchResult matchResult = route.match(request.getHttpMethod(), request.getUrl());
-            if (matchResult.getResult()) {
-                flag = false;
-                final Action action = matchResult.getAction();
-                executorService.submit(() -> {
-                    try {
-                        action.invoke(request, response);
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    }
-                    ctx.writeAndFlush(response.send()).addListener(ChannelFutureListener.CLOSE);
-                });
-                break;
+        final Route.MatchResult matchResult = penKnife.match(fullHttpRequest.method(), noQueryUrl);
+        final boolean keepAlive = HttpUtil.isKeepAlive(fullHttpRequest);
+        if (matchResult != null) {
+            final Request request = new Request(fullHttpRequest, matchResult.getPathArgMap());
+            try {
+                matchResult.getAction().invoke(request, response);
+            } catch (InterruptedException e) {
+                log.error("处理请求{}失败", request, e);
+                response.status(HttpResponseStatus.INTERNAL_SERVER_ERROR);
             }
+        } else {
+            response.status(HttpResponseStatus.NOT_FOUND);
         }
-        if (flag) {
-            ctx.writeAndFlush(response.status(HttpResponseStatus.NOT_FOUND)).addListener(ChannelFutureListener.CLOSE);
+        if (keepAlive) {
+            response.header(HttpHeaderNames.CONNECTION, KEEP_ALIVE);
+            ctx.write(response, ctx.voidPromise());
+        } else {
+            ctx.write(response).addListener(ChannelFutureListener.CLOSE);
         }
+
     }
 
     @Override
@@ -52,9 +61,11 @@ public class AdapterHandler extends SimpleChannelInboundHandler<FullHttpRequest>
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
+        log.error("", cause);
         if (ctx.channel().isOpen() && ctx.channel().isActive() && ctx.channel().isWritable()) {
             ctx.close();
         }
     }
+
 
 }
