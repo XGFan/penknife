@@ -1,10 +1,13 @@
 package com.test4x.penknife.message;
 
+import com.test4x.penknife.PenKnife;
 import com.test4x.penknife.entity.Parameter;
 import io.netty.handler.codec.http.*;
 import io.netty.handler.codec.http.cookie.Cookie;
 import io.netty.handler.codec.http.cookie.ServerCookieDecoder;
-import io.netty.handler.codec.http.multipart.*;
+import io.netty.handler.codec.http.multipart.Attribute;
+import io.netty.handler.codec.http.multipart.HttpPostRequestDecoder;
+import io.netty.handler.codec.http.multipart.InterfaceHttpData;
 import io.netty.util.CharsetUtil;
 import lombok.extern.slf4j.Slf4j;
 
@@ -18,13 +21,11 @@ import java.util.stream.Collectors;
 @Slf4j
 public class Request {
 
-    //    private FullHttpRequest delegate;
     private Map<String, String> pathParameters;
-    private Map<String, List<String>> bodyParameters = Collections.emptyMap();
+    private Map<String, List<String>> formParameters = Collections.emptyMap();
     private Map<String, List<String>> queryParameters;
     private HttpHeaders headers;
-
-    private final static HttpDataFactory HTTP_DATA_FACTORY = new DefaultHttpDataFactory(DefaultHttpDataFactory.MINSIZE);
+    private byte[] rawBody = new byte[0];
 
     //todo
     public Request(FullHttpRequest fullHttpRequest, Map<String, String> pathArgMaps) {
@@ -37,17 +38,20 @@ public class Request {
         this.queryParameters = new QueryStringDecoder(delegate.uri(), CharsetUtil.UTF_8).parameters();
         //header
         headers = delegate.headers();
+
+
         //body
         if (!delegate.method().equals(HttpMethod.GET)) {
-            HttpPostRequestDecoder decoder = new HttpPostRequestDecoder(HTTP_DATA_FACTORY, delegate);
+            rawBody = new byte[delegate.content().readableBytes()];
+            delegate.content().readBytes(rawBody);
+            HttpPostRequestDecoder decoder = new HttpPostRequestDecoder(delegate);
             final List<InterfaceHttpData> bodyHttpDatas = decoder.getBodyHttpDatas();
-
             if (!bodyHttpDatas.isEmpty()) {
                 final InterfaceHttpData.HttpDataType firstType = bodyHttpDatas.get(0).getHttpDataType();
                 if (firstType != InterfaceHttpData.HttpDataType.Attribute) {
                     throw new UnsupportedOperationException(firstType.toString());
                 } else {
-                    bodyParameters = bodyHttpDatas.stream().map(it -> {
+                    formParameters = bodyHttpDatas.stream().map(it -> {
                         try {
                             return new Parameter(it.getName(), ((Attribute) it).getValue());
                         } catch (IOException e) {
@@ -61,7 +65,7 @@ public class Request {
                                 return s1;
                             }));
                 }
-            }
+            } //todo 文件上传
         }
     }
 
@@ -96,16 +100,28 @@ public class Request {
         return pathParameters.get(str);
     }
 
-    public List<String> bodyList(String str) {
-        return bodyParameters.get(str);
+    public List<String> formList(String str) {
+        return formParameters.get(str);
     }
 
-    public String body(String str) {
-        final List<String> strings = bodyParameters.get(str);
+    public String form(String str) {
+        final List<String> strings = formParameters.get(str);
         if (strings == null) {
             return null;
         }
         return String.join(",", strings);
+    }
+
+    public byte[] rawBody() {
+        return rawBody;
+    }
+
+    public <T> T readAsJson(Class<T> tClass) throws IOException {
+        return PenKnife.objectMapper.readValue(rawBody, tClass);
+    }
+
+    public String readAsText() throws IOException {
+        return new String(rawBody);
     }
 
 }

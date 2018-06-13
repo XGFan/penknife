@@ -1,7 +1,8 @@
 package com.test4x.penknife.converter;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
+import java.io.IOException;
 
 public class JsonConverter implements HttpMessageConverter {
 
@@ -33,7 +34,7 @@ public class JsonConverter implements HttpMessageConverter {
     }
 
     @Override
-    public byte[] convert(Object body) throws JsonProcessingException {
+    public byte[] convert(Object body) throws IOException {
         return mapper.writeValueAsBytes(body);
     }
 

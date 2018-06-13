@@ -6,10 +6,7 @@ import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
-import io.netty.handler.codec.http.FullHttpRequest;
-import io.netty.handler.codec.http.HttpHeaderNames;
-import io.netty.handler.codec.http.HttpResponseStatus;
-import io.netty.handler.codec.http.HttpUtil;
+import io.netty.handler.codec.http.*;
 import lombok.extern.slf4j.Slf4j;
 
 import static io.netty.handler.codec.http.HttpHeaderValues.KEEP_ALIVE;
@@ -27,17 +24,18 @@ public class AdapterHandler extends SimpleChannelInboundHandler<FullHttpRequest>
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest fullHttpRequest) {
         String url = fullHttpRequest.uri();
+        final HttpMethod method = fullHttpRequest.method();
         int pathEndPos = url.indexOf('?');
         String noQueryUrl = pathEndPos < 0 ? url : url.substring(0, pathEndPos);
         final Response response = new Response();
-        final Route.MatchResult matchResult = penKnife.match(fullHttpRequest.method(), noQueryUrl);
+        final Route.MatchResult matchResult = penKnife.match(method, noQueryUrl);
         final boolean keepAlive = HttpUtil.isKeepAlive(fullHttpRequest);
         if (matchResult != null) {
             final Request request = new Request(fullHttpRequest, matchResult.getPathArgMap());
             try {
                 matchResult.getAction().invoke(request, response);
-            } catch (InterruptedException e) {
-                log.error("处理请求{}失败", request, e);
+            } catch (Exception e) {
+                log.error("{} {} Error", method, url, e);
                 response.status(HttpResponseStatus.INTERNAL_SERVER_ERROR);
             }
         } else {

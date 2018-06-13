@@ -1,12 +1,11 @@
 package com.test4x.penknife;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.test4x.penknife.converter.HttpMessageConverter;
 import com.test4x.penknife.converter.JsonConverter;
 import com.test4x.penknife.converter.PlainConverter;
 import io.netty.handler.codec.http.HttpMethod;
 
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -60,23 +59,28 @@ public class PenKnife {
 
 
     public static PenKnife INSTANCE = new PenKnife();
+    public static ObjectMapper objectMapper = new ObjectMapper();
 
     static {
         INSTANCE.register(new PlainConverter());
-        INSTANCE.register(new JsonConverter());
+        INSTANCE.register(new JsonConverter(objectMapper));
     }
 
     public void start(int port) {
+        final NettyServer nettyServer = new NettyServer(this);
         new Thread(() -> {
             try {
-                new NettyServer(this).start(port);
+                nettyServer.start(port);
             } catch (Exception e) {
                 e.printStackTrace();
             }
         }).start();
+        try {
+            nettyServer.waitForStarted();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
     }
-
-
 
 
 }
